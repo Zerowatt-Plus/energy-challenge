@@ -1,0 +1,108 @@
+import pandas as pd
+import numpy as np
+df = pd.read_csv('/home/ameer/Downloads/energy.csv')
+equipment_rating = 1000
+efficiency = 0.9
+service_factor = 1.1
+df['motor_rating'] = equipment_rating / efficiency
+df['total_power'] = df['p1'] + df['p2'] + df['p3']
+conditions = [
+    (df['total_power'] > 0) & (df['total_power'] <= 0.01 * df['motor_rating']),
+    (df['total_power'] > 0.01 * df['motor_rating']) & (df['total_power'] <= 0.3 * df['motor_rating']),
+    (df['total_power'] > 0.3 * df['motor_rating']) & (df['total_power'] <= service_factor * df['motor_rating']),
+    (df['total_power'] > service_factor * df['motor_rating'])]
+choices = ['vampire', 'idle', 'normal', 'overload']
+df['category'] = np.select(conditions, choices, default='unknown')
+energy_consumption = df.groupby('category')['energy'].sum() / 1000
+energy_consumption = energy_consumption.astype(int)
+output = {'vampire': energy_consumption.get('vampire', 0),'idle': energy_consumption.get('idle', 0),'normal': energy_consumption.get('normal', 0),'overload': energy_consumption.get('overload', 0)}
+print(df)
+print("Energy Consumption (in kWh):")
+print(output)
+
+
+
+
+import pandas as pd
+df = pd.read_csv('/home/ameer/Downloads/energy.csv')
+timestamp_column = 'time'
+energy_column = 'energy'
+df[timestamp_column] = pd.to_datetime(df[timestamp_column])
+result = {'vampire': [],'idle': [],'overload': []}
+def categorize_energy(value):
+    if value == 0:
+        return 'idle'
+    elif value == 1:
+        return 'vampire'
+    else:
+        return 'overload'
+current_category = None
+start_time = None
+for index, row in df.iterrows():
+    timestamp = row[timestamp_column]
+    energy = row[energy_column]
+    category = categorize_energy(energy)
+    if category != current_category:
+        if start_time and current_category:
+            # Record the time period for the previous category
+            end_time = timestamp - pd.Timedelta(seconds=1)
+            result[current_category].append(
+                (start_time.strftime('%H:%M:%S'), end_time.strftime('%H:%M:%S')))
+        current_category = category
+        start_time = timestamp
+if start_time and current_category:
+    result[current_category].append(
+        (start_time.strftime('%H:%M:%S'), timestamp.strftime('%H:%M:%S')))
+print("Categorized Intervals:")
+print(result)
+
+
+
+
+
+
+
+import pandas as pd
+from datetime import datetime, timedelta
+df = pd.read_csv('/home/ameer/Downloads/energy.csv')
+tariffs = [ {'zone': 1, 'start_time': '06:00', 'end_time': '18:00', 'rate': 790},{'zone': 2, 'start_time': '18:00', 'end_time': '22:00', 'rate': 1185},{'zone': 3, 'start_time': '22:00', 'end_time': '06:00', 'rate': 593}]
+def convert_time_to_datetime(time_str, date_str):
+    return datetime.strptime(f"{date_str} {time_str}", '%Y-%m-%d %H:%M')
+def get_rate_for_time(time):
+    for tariff in tariffs:
+        start_time = convert_time_to_datetime(tariff['start_time'], time.date())
+        end_time = convert_time_to_datetime(tariff['end_time'], time.date())
+        if end_time < start_time:  # End time is on the next day
+            end_time += timedelta(days=1)
+        if start_time <= time < end_time:
+            return tariff['rate']
+    return 0
+intervals = {'vampire': [('06:00', '06:15'), ('07:10', '07:17')],'idle': [('12:00', '13:00'), ('15:30', '16:00')]}
+date_str = '2024-07-19'
+costs = {'vampire': 0, 'idle': 0}
+def calculate_cost(intervals):
+    total_cost = 0
+    for start_time_str, end_time_str in intervals:
+        start_time = convert_time_to_datetime(start_time_str, date_str)
+        end_time = convert_time_to_datetime(end_time_str, date_str)
+        while start_time < end_time:
+            if start_time.hour < 18:
+                next_change = start_time.replace(hour=18, minute=0)
+            elif start_time.hour < 22:
+                next_change = start_time.replace(hour=22, minute=0)
+            else:
+                next_change = start_time.replace(hour=24, minute=0)
+            next_change = min(next_change, end_time)
+            duration_hours = (next_change - start_time).total_seconds() / 3600
+            rate = get_rate_for_time(start_time)
+            total_cost += duration_hours * (rate / 100)
+            start_time = next_change
+    return total_cost
+costs['vampire'] = calculate_cost(intervals['vampire'])
+costs['idle'] = calculate_cost(intervals['idle'])
+print("Calculated Costs:")
+print(costs)
+
+
+
+
